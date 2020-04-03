@@ -80,6 +80,8 @@ option(HOTSTUFF_MSG_STAT "eanble message statistics" ON)
 option(HOTSTUFF_BLK_PROFILE "enable block profiling" OFF)
 option(HOTSTUFF_TWO_STEP "use two-step HotStuff (instead of three-step HS)" OFF)
 option(BUILD_EXAMPLES "build examples" ON)
+option(HOTSTUFF_ENABLE_LOG_INFO "enable info log" OFF)
+option(HOTSTUFF_ENABLE_BENCHMARK "enable benchmark" OFF)
 
 configure_file(src/config.h.in include/hotstuff/config.h @ONLY)
 

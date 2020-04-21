@@ -1,0 +1,65 @@
+---
+- hosts: replicas
+  gather_facts: no
+  vars:
+    batch_size: 100
+    view_change: 100
+  tasks:
+    - name: Start servers
+      shell: >
+        ./hotstuff-app
+        --conf "$HOME/self_config.conf"
+        --block-size {{ batch_size }}
+        2> "$HOME/{{ inventory_hostname }}.out"
+
+      async: 1000
+      poll: 0
+
+- hosts: clients
+  gather_facts: no
+  vars:
+    rate: 10
+    time: 60
+    payload: 0
+  tasks:
+    - name: Start clients
+      shell: >
+        ./hotstuff-client
+        --idx 0
+        --iter -1
+        --max-async 10000
+        --exit-after {{ time }}
+        --request-rate {{ rate }}
+        2> "$HOME/{{ inventory_hostname }}.out"
+
+      async: 1000
+      poll: 0
+      register: hotstuff_clients
+
+    - name: Wait for clients to exit
+      async_status:
+        jid: "{{ hotstuff_clients.ansible_job_id }}"
+      register: job_result
+      until: job_result.finished
+      retries: 30
+
+- hosts: replicas
+  gather_facts: no
+  tasks:
+    - name: Kill servers
+      shell: killall -s INT hotstuff-app
+      ignore_errors: yes
+    - name: Fetch throughput data
+      fetch:
+        src: "$HOME/{{ inventory_hostname }}.out"
+        dest: "{{ destdir }}/{{ inventory_hostname }}.out"
+        flat: yes
+
+- hosts: clients
+  gather_facts: no
+  tasks:
+    - name: Fetch latency data
+      fetch:
+        src: "$HOME/{{ inventory_hostname }}.out"
+        dest: "{{ destdir }}/{{ inventory_hostname }}.out"
+        flat: yes

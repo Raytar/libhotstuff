@@ -1,0 +1,41 @@
+---
+- hosts: replicas:clients
+  become: true
+  tasks:
+    - name: Install dependencies
+      apt:
+        update_cache: yes
+        pkg:
+          - libuv1
+          - libssl1.1
+
+- hosts: replicas
+  vars:
+    replica_id: "{{ inventory_hostname | regex_replace('[^0-9]', '') }}"
+  tasks:
+    - name: Upload hotstuff_app binary
+      copy:
+        src: ../examples/hotstuff-app
+        dest: $HOME/hotstuff-app
+        mode: 0755
+    - name: Upload config file
+      copy:
+        src: "{{ config_path }}/hotstuff-sec{{ (replica_id|int)-1 }}.conf"
+        dest: $HOME/self_config.conf
+        mode: 0644
+
+- hosts: clients
+  tasks:
+    - name: Upload hotstuffclient binary
+      copy:
+        src: ../examples/hotstuff-client
+        dest: $HOME/hotstuff-client
+        mode: 0755
+
+- hosts: clients:replicas
+  tasks:
+    - name: Upload hotstuff.conf
+      copy:
+        src: "{{ config_path }}/hotstuff.conf"
+        dest: $HOME/hotstuff.conf
+        mode: 0644

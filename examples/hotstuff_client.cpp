@@ -19,6 +19,7 @@
 #include <random>
 #include <signal.h>
 #include <sys/time.h>
+#include <unistd.h>
 
 #include "salticidae/type.h"
 #include "salticidae/netaddr.h"
@@ -49,6 +50,9 @@ int max_iter_num;
 uint32_t cid;
 uint32_t cnt = 0;
 uint32_t nfaulty;
+struct timespec sleep_time;
+int exit_after;
+struct timeval start_time;
 
 struct Request {
     command_t cmd;
@@ -84,6 +88,21 @@ bool try_send(bool check = true) {
             cmd->get_hash(), Request(cmd)));
         if (max_iter_num > 0)
             max_iter_num--;
+        
+        if (sleep_time.tv_nsec > 0) {
+            nanosleep(&sleep_time, nullptr);
+        }
+
+        if (exit_after > 0) {
+            struct timeval time_now;
+            struct timeval diff;
+            gettimeofday(&time_now, nullptr);
+            timersub(&time_now, &start_time, &diff);
+            if (diff.tv_sec >= exit_after) {
+                ec.stop();
+            }
+        }
+
         return true;
     }
     return false;
@@ -124,6 +143,8 @@ int main(int argc, char **argv) {
     auto opt_max_iter_num = Config::OptValInt::create(100);
     auto opt_max_async_num = Config::OptValInt::create(10);
     auto opt_cid = Config::OptValInt::create(-1);
+    auto opt_request_rate = Config::OptValInt::create(-1);
+    auto opt_exit_after = Config::OptValInt::create(-1);
 
     auto shutdown = [&](int) { ec.stop(); };
     salticidae::SigEvent ev_sigint(ec, shutdown);
@@ -139,10 +160,23 @@ int main(int argc, char **argv) {
     config.add_opt("replica", opt_replicas, Config::APPEND);
     config.add_opt("iter", opt_max_iter_num, Config::SET_VAL);
     config.add_opt("max-async", opt_max_async_num, Config::SET_VAL);
+    config.add_opt("request-rate", opt_request_rate, Config::SET_VAL);
+    config.add_opt("exit-after", opt_exit_after, Config::SET_VAL);
+
     config.parse(argc, argv);
     auto idx = opt_idx->get();
     max_iter_num = opt_max_iter_num->get();
     max_async_num = opt_max_async_num->get();
+    auto request_rate = opt_request_rate->get();
+    if (request_rate > 0) {
+        sleep_time.tv_nsec = 1000000000 / (request_rate*1000);
+    }
+    exit_after = opt_exit_after->get();
+    
+    if (exit_after > 0) {
+        gettimeofday(&start_time, nullptr);
+    }
+
     std::vector<std::string> raw;
     for (const auto &s: opt_replicas->get())
     {

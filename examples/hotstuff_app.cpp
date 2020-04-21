@@ -112,10 +112,8 @@ class HotStuffApp: public HotStuff {
 #endif
     }
 
-#ifdef HOTSTUFF_MSG_STAT
     std::unordered_set<conn_t> client_conns;
     void print_stat() const;
-#endif
 
     public:
     HotStuffApp(uint32_t blk_size,

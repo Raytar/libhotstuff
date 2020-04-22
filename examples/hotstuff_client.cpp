@@ -17,6 +17,7 @@
 
 #include <cassert>
 #include <random>
+#include <mutex>
 #include <signal.h>
 #include <sys/time.h>
 #include <unistd.h>
@@ -64,6 +65,7 @@ using Net = salticidae::MsgNetwork<opcode_t>;
 
 std::unordered_map<ReplicaID, Net::conn_t> conns;
 std::unordered_map<const uint256_t, Request> waiting;
+std::mutex waiting_lock;
 std::vector<NetAddr> replicas;
 std::vector<std::pair<struct timeval, double>> elapsed;
 Net mn(ec, Net::Config());
@@ -74,6 +76,7 @@ void connect_all() {
 }
 
 bool try_send(bool check = true) {
+    std::lock_guard<std::mutex> lg(waiting_lock);
     if ((!check || waiting.size() < max_async_num) && max_iter_num)
     {
         auto cmd = new CommandDummy(cid, cnt++);
@@ -85,6 +88,7 @@ bool try_send(bool check = true) {
 #endif
         waiting.insert(std::make_pair(
             cmd->get_hash(), Request(cmd)));
+        
         if (max_iter_num > 0)
             max_iter_num--;
 
@@ -94,6 +98,7 @@ bool try_send(bool check = true) {
 }
 
 void client_resp_cmd_handler(MsgRespCmd &&msg, const Net::conn_t &) {
+    std::lock_guard<std::mutex> lg(waiting_lock);
     auto &fin = msg.fin;
     HOTSTUFF_LOG_DEBUG("got %s", std::string(msg.fin).c_str());
     const uint256_t &cmd_hash = fin.cmd_hash;
@@ -122,6 +127,9 @@ std::pair<std::string, std::string> split_ip_port_cport(const std::string &s) {
 void send_requests() {
     while (!stop) {
         try_send();
+        if (!max_iter_num) {
+            return;
+        }
 
         if (sleep_time.tv_nsec > 0) {
             nanosleep(&sleep_time, nullptr);
@@ -163,7 +171,7 @@ int main(int argc, char **argv) {
     max_async_num = opt_max_async_num->get();
     auto request_rate = opt_request_rate->get();
     if (request_rate > 0) {
-        sleep_time.tv_nsec = 1000000000 / (request_rate*1000);
+        sleep_time.tv_nsec = 1e9 / (request_rate*1000);
     }
     std::vector<std::string> raw;
     for (const auto &s: opt_replicas->get())

@@ -51,8 +51,7 @@ uint32_t cid;
 uint32_t cnt = 0;
 uint32_t nfaulty;
 struct timespec sleep_time;
-int exit_after;
-struct timeval start_time;
+bool stop = false;
 
 struct Request {
     command_t cmd;
@@ -88,20 +87,6 @@ bool try_send(bool check = true) {
             cmd->get_hash(), Request(cmd)));
         if (max_iter_num > 0)
             max_iter_num--;
-        
-        if (sleep_time.tv_nsec > 0) {
-            nanosleep(&sleep_time, nullptr);
-        }
-
-        if (exit_after > 0) {
-            struct timeval time_now;
-            struct timeval diff;
-            gettimeofday(&time_now, nullptr);
-            timersub(&time_now, &start_time, &diff);
-            if (diff.tv_sec >= exit_after) {
-                ec.stop();
-            }
-        }
 
         return true;
     }
@@ -127,12 +112,21 @@ void client_resp_cmd_handler(MsgRespCmd &&msg, const Net::conn_t &) {
     elapsed.push_back(std::make_pair(tv, et.elapsed_sec));
 #endif
     waiting.erase(it);
-    while (try_send());
 }
 
 std::pair<std::string, std::string> split_ip_port_cport(const std::string &s) {
     auto ret = salticidae::trim_all(salticidae::split(s, ";"));
     return std::make_pair(ret[0], ret[1]);
+}
+
+void send_requests() {
+    while (!stop) {
+        try_send();
+
+        if (sleep_time.tv_nsec > 0) {
+            nanosleep(&sleep_time, nullptr);
+        }
+    }
 }
 
 int main(int argc, char **argv) {
@@ -171,12 +165,6 @@ int main(int argc, char **argv) {
     if (request_rate > 0) {
         sleep_time.tv_nsec = 1000000000 / (request_rate*1000);
     }
-    exit_after = opt_exit_after->get();
-    
-    if (exit_after > 0) {
-        gettimeofday(&start_time, nullptr);
-    }
-
     std::vector<std::string> raw;
     for (const auto &s: opt_replicas->get())
     {
@@ -199,8 +187,13 @@ int main(int argc, char **argv) {
     nfaulty = (replicas.size() - 1) / 3;
     HOTSTUFF_LOG_INFO("nfaulty = %zu", nfaulty);
     connect_all();
-    while (try_send());
+
+    // send requests in a separate thread
+    std::thread req_thread(send_requests);
+
     ec.dispatch();
+    stop = true;
+    req_thread.join();
 
 #ifdef HOTSTUFF_ENABLE_BENCHMARK
     for (const auto &e: elapsed)

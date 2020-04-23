@@ -1,4 +1,16 @@
 ---
+- hosts: clients
+  gather_facts: no
+  tasks:
+    - name: Clean results dir
+      file:
+        path: /tmp/results
+        state: absent
+    - name: Create results dir
+      file:
+        path: /tmp/results
+        state: directory
+
 - hosts: replicas
   gather_facts: no
   vars:
@@ -10,8 +22,6 @@
         ./hotstuff-app
         --conf "$HOME/self_config.conf"
         --block-size {{ batch_size }}
-        2> "$HOME/{{ inventory_hostname }}.out"
-
       async: 1000
       poll: 0
 
@@ -21,19 +31,21 @@
     rate: 10
     time: 60
     payload: 0
+    num_clients: 1
+    client_id: "{{ inventory_hostname | regex_replace('[^0-9]', '') }}"
   tasks:
     - name: Start clients
       shell: >
         ./hotstuff-client
-        --idx 0
+        --cid {{ item }}
         --iter -1
-        --max-async 5000
+        --max-async 3200
         --request-rate {{ rate }}
-        2> "$HOME/{{ inventory_hostname }}.out"
-      register: hotstuff_clients
-
+        2> "/tmp/results/{{ inventory_hostname }}-c{{ item }}.out"
       async: 1000
       poll: 0
+      loop: "{{ range((client_id|int) * (num_clients|int) - (num_clients|int), (client_id|int) * (num_clients|int)) | list }}"
+      register: hotstuff_clients
 
     - name: Sleep
       shell: sleep "{{ time }}"
@@ -54,7 +66,8 @@
 
     - name: Wait for benchmark to run
       async_status:
-        jid: "{{ hotstuff_clients.ansible_job_id }}"
+        jid: "{{ item.ansible_job_id }}"
+      loop: "{{ hotstuff_clients.results }}"
       register: job_result
       until: job_result.finished
       retries: 30
@@ -65,17 +78,12 @@
     - name: Kill servers
       shell: killall -s INT hotstuff-app
       ignore_errors: yes
-    - name: Fetch throughput data
-      fetch:
-        src: "$HOME/{{ inventory_hostname }}.out"
-        dest: "{{ destdir }}/{{ inventory_hostname }}.out"
-        flat: yes
 
 - hosts: clients
   gather_facts: no
   tasks:
-    - name: Fetch latency data
-      fetch:
-        src: "$HOME/{{ inventory_hostname }}.out"
-        dest: "{{ destdir }}/{{ inventory_hostname }}.out"
-        flat: yes
+    - name: Fetch data
+      synchronize:
+        src: "/tmp/results/"
+        dest: "{{ destdir }}/{{ inventory_hostname }}"
+        mode: pull

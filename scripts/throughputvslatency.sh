@@ -1,25 +1,36 @@
 #!/usr/bin/env bash
 
+run_benchmark() {
+	mkdir -p "$1"
+	ansible-playbook -i scripts/hotstuff.gcp.yml scripts/throughputvslatency.yml \
+		-e "destdir='$1' rate='$2' batch_size='$3' payload='$4' time='$5' num_clients='$6'"
+}
+
 # Exit if anything fails
 set -e
 
 basedir="$1/throughputvslatency-$(date +%Y%m%d%H%M%S)"
+mkdir -p "$basedir"
 
-run_benchmark_series() {
-	for n in {1..1}; do
-		rundir="$basedir/lhs-b$1-p$2/$n"
-		mkdir -p "$rundir"
-		for t in {10,20,40,80,100,250,500,1000}; do
-			testdir="$rundir/t$t"
-			mkdir -p "$testdir"
-			ansible-playbook -i scripts/hotstuff.gcp.yml scripts/throughputvslatency.yml \
-				-e "destdir='$testdir' rate='$t' batch_size='$1' payload='$2' time='10' num_clients=3"
-		done
+# how many times to repeat each benchmark
+for n in {1..1}; do
+
+	batch=100
+	payload=0
+	for t in {2000,3000,4000,6000,8000,9000,10000}; do
+		run_benchmark "$basedir/lhs-b$batch-p$payload/$n/t$t" "$t" "$batch" "$payload" 10 2
 	done
-}
 
-mkdir -p $basedir
+	batch=400
+	payload=0
+	for t in {25000,30000,35000,40000,50000,60000,65000,70000}; do
+		run_benchmark "$basedir/lhs-b$batch-p$payload/$n/t$t" "$t" "$batch" "$payload" 10 3
+	done
 
-run_benchmark_series 100 0
-run_benchmark_series 400 0
-run_benchmark_series 800 0
+	batch=800
+	payload=0
+	for t in {25000,30000,35000,40000,50000,55000,65000,70000}; do
+		run_benchmark "$basedir/lhs-b$batch-p$payload/$n/t$t" "$t" "$batch" "$payload" 10 4
+	done
+
+done

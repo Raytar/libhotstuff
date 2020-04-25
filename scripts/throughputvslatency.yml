@@ -28,7 +28,7 @@
 - hosts: clients
   gather_facts: no
   vars:
-    rate: 10
+    rate: 10000
     time: 60
     payload: 0
     num_clients: 1

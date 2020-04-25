@@ -171,7 +171,7 @@ int main(int argc, char **argv) {
     max_async_num = opt_max_async_num->get();
     auto request_rate = opt_request_rate->get();
     if (request_rate > 0) {
-        sleep_time.tv_nsec = 1e9 / (request_rate*1000);
+        sleep_time.tv_nsec = 1e9 / (request_rate);
     }
     std::vector<std::string> raw;
     for (const auto &s: opt_replicas->get())
@@ -196,6 +196,9 @@ int main(int argc, char **argv) {
     HOTSTUFF_LOG_INFO("nfaulty = %zu", nfaulty);
     connect_all();
 
+    struct timeval start;
+    gettimeofday(&start, nullptr);
+
     // send requests in a separate thread
     std::thread req_thread(send_requests);
 
@@ -204,12 +207,13 @@ int main(int argc, char **argv) {
     req_thread.join();
 
 #ifdef HOTSTUFF_ENABLE_BENCHMARK
+    struct timeval prev_time = start;
     for (const auto &e: elapsed)
     {
-        char fmt[64];
-        struct tm *tmp = localtime(&e.first.tv_sec);
-        strftime(fmt, sizeof fmt, "%Y-%m-%d %H:%M:%S.%%06u [hotstuff info] %%.6f\n", tmp);
-        fprintf(stderr, fmt, e.first.tv_usec, e.second);
+        struct timeval diff;
+        timersub(&e.first, &prev_time, &diff);
+        fprintf(stderr, "%ld %ld\n", diff.tv_usec, (long)(e.second * 1e6));
+        prev_time = e.first;
     }
 #endif
     return 0;

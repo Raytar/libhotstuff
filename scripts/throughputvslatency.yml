@@ -35,39 +35,14 @@
     client_id: "{{ inventory_hostname | regex_replace('[^0-9]', '') }}"
   tasks:
     - name: Start clients
-      shell: >
-        ./hotstuff-client
-        --cid {{ item }}
-        --iter -1
-        --max-async 3200
-        --request-rate {{ rate }}
-        2> "/tmp/results/{{ inventory_hostname }}-c{{ item }}.out"
+      shell: ./run_multiple_clients.sh "{{ num_clients }}" "{{ inventory_hostname }}" "{{ client_id }}" "{{ rate }}" "{{ time }}"
       async: 1000
       poll: 0
-      loop: "{{ range((client_id|int) * (num_clients|int) - (num_clients|int), (client_id|int) * (num_clients|int)) | list }}"
       register: hotstuff_clients
 
-    - name: Sleep
-      shell: sleep "{{ time }}"
-      async: 1000
-      poll: 0
-      register: hotstuff_wait
-
     - name: Wait for benchmark to run
       async_status:
-        jid: "{{ hotstuff_wait.ansible_job_id }}"
-      register: job_result
-      until: job_result.finished
-      retries: 30
-    
-    - name: Kill clients
-      shell: killall -s INT hotstuff-client
-      ignore_errors: yes
-
-    - name: Wait for benchmark to run
-      async_status:
-        jid: "{{ item.ansible_job_id }}"
-      loop: "{{ hotstuff_clients.results }}"
+        jid: "{{ hotstuff_clients.ansible_job_id }}"
       register: job_result
       until: job_result.finished
       retries: 30

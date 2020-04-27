@@ -31,6 +31,11 @@
         src: ../examples/hotstuff-client
         dest: $HOME/hotstuff-client
         mode: 0755
+    - name: Upload run_multiple_clients script
+      copy:
+        src: ./run_multiple_clients.sh
+        dest: $HOME/run_multiple_clients.sh
+        mode: 0755
 
 - hosts: clients:replicas
   tasks:

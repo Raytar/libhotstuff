@@ -17,19 +17,19 @@ for n in {1..1}; do
 
 	batch=100
 	payload=0
-	for t in {2000,3000,4000,6000,8000,9000,10000}; do
+	for t in {5000,6000,8000,10000,10500,11000,11500,12000,12500,13000}; do
 		run_benchmark "$basedir/lhs-b$batch-p$payload/$n/t$t" "$t" "$batch" "$payload" 10 2
 	done
 
 	batch=400
 	payload=0
-	for t in {25000,30000,35000,40000,50000,60000,65000,70000}; do
+	for t in {40000,50000,60000,70000,80000,90000,100000,110000,120000}; do
 		run_benchmark "$basedir/lhs-b$batch-p$payload/$n/t$t" "$t" "$batch" "$payload" 10 3
 	done
 
 	batch=800
 	payload=0
-	for t in {25000,30000,35000,40000,50000,55000,65000,70000}; do
+	for t in {30000,40000,50000,60000,70000,80000,90000,100000,110000,120000,140000}; do
 		run_benchmark "$basedir/lhs-b$batch-p$payload/$n/t$t" "$t" "$batch" "$payload" 10 4
 	done
 

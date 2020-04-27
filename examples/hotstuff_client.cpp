@@ -16,6 +16,7 @@
  */
 
 #include <cassert>
+#include <chrono>
 #include <random>
 #include <mutex>
 #include <signal.h>
@@ -67,7 +68,7 @@ std::unordered_map<ReplicaID, Net::conn_t> conns;
 std::unordered_map<const uint256_t, Request> waiting;
 std::mutex waiting_lock;
 std::vector<NetAddr> replicas;
-std::vector<std::pair<struct timeval, double>> elapsed;
+std::vector<std::pair<std::chrono::time_point<std::chrono::high_resolution_clock>, double>> elapsed;
 Net mn(ec, Net::Config());
 
 void connect_all() {
@@ -112,9 +113,8 @@ void client_resp_cmd_handler(MsgRespCmd &&msg, const Net::conn_t &) {
                         std::string(fin).c_str(),
                         et.elapsed_sec, et.cpu_elapsed_sec);
 #else
-    struct timeval tv;
-    gettimeofday(&tv, nullptr);
-    elapsed.push_back(std::make_pair(tv, et.elapsed_sec));
+    auto now = std::chrono::high_resolution_clock::now();
+    elapsed.push_back(std::make_pair(now, et.elapsed_sec));
 #endif
     waiting.erase(it);
 }
@@ -196,8 +196,7 @@ int main(int argc, char **argv) {
     HOTSTUFF_LOG_INFO("nfaulty = %zu", nfaulty);
     connect_all();
 
-    struct timeval start;
-    gettimeofday(&start, nullptr);
+    auto start = std::chrono::high_resolution_clock::now();
 
     // send requests in a separate thread
     std::thread req_thread(send_requests);
@@ -207,12 +206,11 @@ int main(int argc, char **argv) {
     req_thread.join();
 
 #ifdef HOTSTUFF_ENABLE_BENCHMARK
-    struct timeval prev_time = start;
+    auto prev_time = start;
     for (const auto &e: elapsed)
     {
-        struct timeval diff;
-        timersub(&e.first, &prev_time, &diff);
-        fprintf(stderr, "%ld %ld\n", diff.tv_usec, (long)(e.second * 1e6));
+        auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(e.first-prev_time).count();
+        fprintf(stderr, "%ld %ld\n", ns, (long)(e.second * 1e6));
         prev_time = e.first;
     }
 #endif

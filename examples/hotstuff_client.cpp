@@ -49,6 +49,7 @@ EventContext ec;
 ReplicaID proposer;
 size_t max_async_num;
 int max_iter_num;
+int exit_after;
 uint32_t cid;
 uint32_t cnt = 0;
 uint32_t nfaulty;
@@ -125,6 +126,7 @@ std::pair<std::string, std::string> split_ip_port_cport(const std::string &s) {
 }
 
 void send_requests() {
+    auto start_time = std::chrono::steady_clock::now();
     while (!stop) {
         try_send();
         if (!max_iter_num) {
@@ -133,6 +135,14 @@ void send_requests() {
 
         if (sleep_time.tv_nsec > 0) {
             nanosleep(&sleep_time, nullptr);
+        }
+
+        if (exit_after > 0) {
+            auto now = std::chrono::steady_clock::now();
+            auto diff = std::chrono::duration_cast<std::chrono::seconds>(now-start_time).count();
+            if (diff >= exit_after) {
+                raise(SIGINT);
+            }
         }
     }
 }
@@ -169,6 +179,7 @@ int main(int argc, char **argv) {
     auto idx = opt_idx->get();
     max_iter_num = opt_max_iter_num->get();
     max_async_num = opt_max_async_num->get();
+    exit_after = opt_exit_after->get();
     auto request_rate = opt_request_rate->get();
     if (request_rate > 0) {
         sleep_time.tv_nsec = 1e9 / (request_rate);

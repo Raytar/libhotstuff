@@ -85,6 +85,12 @@ option(HOTSTUFF_ENABLE_BENCHMARK "enable benchmark" OFF)
 
 configure_file(src/config.h.in include/hotstuff/config.h @ONLY)
 
+if(NOT DEFINED HOTSTUFF_CMD_REQSIZE)
+    set(HOTSTUFF_MSG_REQSIZE 0)
+endif()
+
+add_compile_definitions(HOTSTUFF_CMD_REQSIZE=${HOTSTUFF_CMD_REQSIZE})
+
 # build examples
 if(BUILD_EXAMPLES)
     add_subdirectory(examples)

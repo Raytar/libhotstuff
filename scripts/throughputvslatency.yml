@@ -33,9 +33,10 @@
     payload: 0
     num_clients: 1
     client_id: "{{ inventory_hostname | regex_replace('[^0-9]', '') }}"
+    max_async: 3200
   tasks:
     - name: Start clients
-      shell: ./run_multiple_clients.sh "{{ num_clients }}" "{{ inventory_hostname }}" "{{ client_id }}" "{{ rate }}" "{{ time }}"
+      shell: ./run_multiple_clients.sh "{{ num_clients }}" "{{ inventory_hostname }}" "{{ client_id }}" "{{ rate }}" "{{ max_async }}" "{{ time }}" 
       async: 1000
       poll: 0
       register: hotstuff_clients
@@ -60,5 +61,5 @@
     - name: Fetch data
       synchronize:
         src: "/tmp/results/"
-        dest: "{{ destdir }}/{{ inventory_hostname }}"
+        dest: "{{ destdir }}"
         mode: pull

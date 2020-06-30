@@ -30,3 +30,5 @@ gcp_token.json
 gcloud_test
 nodes.txt
 ips.txt
+.cmake
+compile_commands.json
